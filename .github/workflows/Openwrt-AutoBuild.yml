@@ -120,16 +120,14 @@ jobs:
     - name: Clone source code
       run: |
         set -x
-        TAG_INFO="$(curl -gs -H 'Content-Type: application/json' \
-           -H "Authorization: Bearer ${{ secrets.TOKEN_KIDDIN9 }}" \
-           -X POST -d '{ "query": "query {repository(owner: \"openwrt\", name: \"openwrt\") {refs(refPrefix: \"refs/tags/\", first: 4, orderBy: {field: TAG_COMMIT_DATE, direction: DESC}) {nodes {name target { ... on Tag {tagger {date}}}}}}}"}' https://api.github.com/graphql)"
-        TAG_DATE="$( echo ${TAG_INFO} | jq -r '.data.repository.refs.nodes[] | select(.name | startswith("v25")) | .target.tagger.date' | head -n 1)"
-        if [[ $(( ($(date +%s) - $(date -d "$TAG_DATE" +%s)) / 86400 )) -lt 10 || "${{ contains(github.event.action, 'tags') }}" == "true" ]]; then
-        REPO_BRANCH="$( echo ${TAG_INFO} | jq -r '.data.repository.refs.nodes[].name' | grep v25 | head -n 1)"
-        #REPO_BRANCH="openwrt-25.12"
-        else
+        # 上游原逻辑：用 secrets.TOKEN_KIDDIN9 调 GraphQL 判断"最近是否有 v25 tag"，
+        # 从而决定用 tag 还是 openwrt-25.12 分支。
+        # 在 fork 中该 secret 不存在 -> GraphQL 返回 401 -> TAG_DATE 为空 ->
+        # `date -d ""` 返回"当前时间" -> 时间差算成 0 -> 误判为"tag 在 10 天内" ->
+        # REPO_BRANCH 取到空值 -> `git clone $REPO_URL -b $REPO_BRANCH openwrt`
+        # 退化成 `-b openwrt`（目标目录被当成分支名）-> exit 128。
+        # 因此这里去掉猜测逻辑，固定使用 openwrt-25.12 分支。
         REPO_BRANCH="openwrt-25.12"
-        fi
         #echo "CONFIG_VERSION_REPO=\"https://dl.openwrt.ai/releases/`echo $REPO_BRANCH  | cut -d . -f 1,2 | sed -e 's/^v//'`\"">>devices/common/.config
         if [[ ! "${{ env.REPO_BRANCH }}" && "$REPO_URL" == "https://github.com/openwrt/openwrt" ]]; then
             git clone $REPO_URL -b $REPO_BRANCH openwrt
