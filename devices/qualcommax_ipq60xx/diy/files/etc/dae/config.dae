@@ -131,6 +131,52 @@ routing {
     domain(geosite:epicgames) -> proxy
     domain(geosite:category-games) -> proxy
 
+    # ===== ACL4SSR ruleset 逐条对应（33 项）=====
+    # 1 LocalAreaNetwork      -> dip(geoip:private)（已在上面）
+    # 2 UnBan                 -> 由 geosite:cn/direct 覆盖（dae 无 Clash 的"强制解封"概念）
+    # 3 BanAD / 4 BanProgramAD
+    domain(geosite:category-ads) -> block
+    # 5 GoogleFCM（推送，ACL4SSR 放直连）
+    domain(suffix: mtalk.google.com, alt1-mtalk.google.com, alt2-mtalk.google.com) -> direct
+    # 6 GoogleCN
+    domain(suffix: google.cn, gstatic.cn, googleapis.cn) -> direct
+    # 7 SteamCN
+    domain(suffix: steamcontent.com, steamstatic.com) -> direct
+    # 8 Bing
+    domain(suffix: bing.com, bing.net, microsofttranslator.com) -> direct
+    # 9 OneDrive / 10 Microsoft / 11 Apple（上面已按 geosite 直连）
+    # 12 Telegram（上面已按用途组）
+    # 13 AI / 14 OpenAi（上面已按用途组）
+    # 15 NetEaseMusic
+    domain(suffix: music.163.com, interface.music.163.com) -> direct
+    # 16 Epic / 19 Steam / 17 Origin / 18 Sony / 20 Nintendo
+    domain(geosite:epicgames) -> proxy
+    domain(suffix: origin-a.akamaihd.net, eaassets-a.akamaihd.net) -> proxy
+    domain(suffix: playstation.net, playstation.com) -> proxy
+    domain(suffix: nintendo.net, nintendo.com, nintendo.co.jp) -> proxy
+    # 21 YouTube / 22 Netflix（上面已按 streaming）
+    # 23 Bahamut
+    domain(suffix: bahamut.com.tw, gamer.com.tw, hinet.net) -> direct
+    # 24 BilibiliHMT
+    domain(suffix: bilibili.tv) -> direct
+    # 25 Bilibili
+    domain(geosite:bilibili) -> direct
+    # 26 ChinaMedia
+    domain(geosite:iqiyi) -> direct
+    domain(geosite:youku) -> direct
+    # 27 ProxyMedia
+    domain(geosite:category-media) -> streaming
+    # 28 ProxyGFWlist
+    domain(geosite:geolocation-!cn) -> proxy
+    # 29 ChinaDomain
+    domain(geosite:cn) -> direct
+    # 30 ChinaCompanyIp
+    dip(geoip:cn) -> direct
+    # 31 Download
+    domain(geosite:category-porn) -> download
+    domain(suffix: download.microsoft.com, steamcontent.com) -> download
+    # 32 全球直连 / 33 漏网之鱼 由 direct/cn 与 fallback 承担
+
     # ===== 兜底（ACL4SSR: 漏网之鱼）=====
     domain(geosite:geolocation-!cn) -> proxy
     fallback: proxy
