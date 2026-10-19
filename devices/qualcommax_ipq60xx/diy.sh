@@ -25,8 +25,4 @@ sed -i "s/luci uboot-envtools wpad-openssl/luci uboot-envtools wpad-mbedtls/" ta
 # --- 预装 mwan4（nftables 版 mwan3；官方只发 ipk，这里从源码编进固件）---
 git clone --depth 1 https://github.com/mossdef-org/mwan4.git package/mwan4 || true
 
-# --- Loyalsoldier 增强版 geosite/geoip（比 v2fly 原生更全，更新更频繁）---
-mkdir -p diy/files/usr/share/v2ray
-wget -q -O diy/files/usr/share/v2ray/geosite.dat https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat || true
-wget -q -O diy/files/usr/share/v2ray/geoip.dat   https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat   || true
-ls -lh diy/files/usr/share/v2ray/ || true
+# geo 数据（geosite/geoip）不编入固件：更新极频繁（每日），改由 /root/update-geo.sh 下载到 overlay
