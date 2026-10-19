@@ -26,3 +26,9 @@ sed -i "s/luci uboot-envtools wpad-openssl/luci uboot-envtools wpad-mbedtls/" ta
 git clone --depth 1 https://github.com/mossdef-org/mwan4.git package/mwan4 || true
 
 # geo 数据（geosite/geoip）不编入固件：更新极频繁（每日），改由 /root/update-geo.sh 下载到 overlay
+
+# --- subconverter（用户指定的 asdlokj1qpi233 fork，静态链接 aarch64）---
+SC_VER=v0.9.9
+mkdir -p diy/files/opt
+wget -q -O /tmp/sc.tgz "https://github.com/asdlokj1qpi233/subconverter/releases/download/${SC_VER}/subconverter_aarch64.tar.gz" && \
+  tar xzf /tmp/sc.tgz -C diy/files/opt/ && ls -lh diy/files/opt/subconverter/ | head -5 || echo "subconverter 下载失败"
