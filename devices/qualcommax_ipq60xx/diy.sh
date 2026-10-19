@@ -21,3 +21,6 @@ sed -i "/ECM_INTERFACE_RAWIP_ENABLE/d"  package/nss-packages/qca-nss-ecm/Makefil
 rm -rf package/nss-packages/nss-userspace-oss
 
 sed -i "s/luci uboot-envtools wpad-openssl/luci uboot-envtools wpad-mbedtls/" target/linux/qualcommax/Makefile
+
+# --- 预装 mwan4（nftables 版 mwan3；官方只发 ipk，这里从源码编进固件）---
+git clone --depth 1 https://github.com/mossdef-org/mwan4.git package/mwan4 || true

@@ -1,0 +1,172 @@
+# ============================================================================
+# dae 完整分流配置（dae / daed 通用）
+# 目标：分流完整度对齐 ACL4SSR_Online_Full_MultiMode 的"覆盖范围 + 分服务出站"
+#
+# 为什么用 geosite/geoip 而不是 ACL4SSR 的 ini：
+#   ACL4SSR 的规则本身是从 v2fly/domain-list-community（geosite）与 geoip 编译出来的，
+#   dae 直接吃 geosite/geoip，等于用"上游原始数据"，覆盖面一样但更新更及时
+#   （订阅 v2ray-geosite / v2ray-geoip 包即可，daed 的依赖里已经包含）。
+#
+# ⚠️ 两个必须知道的点：
+#   1) so_mark_from_dae 必须是 0x04000000（bit26）—— 避开 mwan4 的 0x3F00 与 pbr 的 0x00ff0000
+#   2) geosite 标签必须在当前 geosite 库里存在，写错会导致 dae 启动失败。
+#      下面【核心】部分用的是多年稳定的标签；【扩展】部分默认注释，确认库里有再打开。
+# ============================================================================
+
+global {
+    tproxy_port: 12345
+    tproxy_port_protect: true
+    log_level: info
+
+    # 代理 LAN 与本地
+    lan_interface: br-lan
+    wan_interface: auto
+    auto_config_kernel_parameter: true
+
+    # ★ 关键：避开 mwan4(0x3F00) 与 pbr(0x00ff0000) 的 fwmark
+    so_mark_from_dae: 0x04000000
+
+    dial_mode: domain
+    sniffing_timeout: 30ms
+
+    tcp_check_url: 'http://cp.cloudflare.com,1.1.1.1,2606:4700:4700::1111'
+    tcp_check_http_method: HEAD
+    udp_check_dns: 'dns.google:53,8.8.8.8,2001:4860:4860::8888'
+    check_interval: 30s
+    check_tolerance: 50ms
+
+    allow_insecure: false
+    tls_implementation: utls
+    utls_imitate: chrome_auto
+    tls_fragment: false
+}
+
+# ---------------------------------------------------------------------------
+# 订阅：把你的机场订阅填这里（支持 base64 / clash 订阅由 daed 面板导入）
+# ---------------------------------------------------------------------------
+subscription {
+    # my_sub: 'https://your-subscription-url'
+}
+
+# 也可以直接写单节点
+node {
+    # 'ss://...'
+    # 'vless://...'
+}
+
+# ---------------------------------------------------------------------------
+# DNS：国内域名走 alidns，其余走 googledns；响应侧做一次防污染校验
+# ---------------------------------------------------------------------------
+dns {
+    upstream {
+        alidns: 'udp://dns.alidns.com:53'
+        googledns: 'tcp+udp://dns.google:53'
+    }
+    routing {
+        request {
+            qname(geosite:cn) -> alidns
+            fallback: googledns
+        }
+        response {
+            upstream(googledns) -> accept
+            ip(geoip:private) && !qname(geosite:cn) -> googledns
+            fallback: accept
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
+# 出站分组（相当于 ACL4SSR 的 proxy-groups）
+# 默认只有一个 proxy 组；要做 "MultiMode"（按服务选不同地区节点），
+# 取消下面 streaming / ai / telegram 的注释，并把 name(keyword:'') 改成你节点名里的特征词
+# ---------------------------------------------------------------------------
+group {
+    # 默认组：全部节点，按移动平均延迟选路
+    proxy {
+        policy: min_moving_avg
+    }
+
+    # 流媒体组（示例：节点名里带 "US"/"Netflix" 的）
+    #streaming {
+    #    filter: name(keyword: 'US') || name(keyword: 'Netflix')
+    #    policy: min_moving_avg
+    #    tcp_check_url: 'http://test.netflix.com'
+    #}
+
+    # AI 组（示例：节点名里带 "AI"/"GPT" 的）
+    #ai {
+    #    filter: name(keyword: 'AI') || name(keyword: 'GPT')
+    #    policy: min_moving_avg
+    #}
+
+    # 电报组
+    #telegram {
+    #    filter: name(keyword: 'SG') || name(keyword: 'HK')
+    #    policy: min_moving_avg
+    #}
+}
+
+# ---------------------------------------------------------------------------
+# 分流规则（自上而下，先匹配先生效）
+# ---------------------------------------------------------------------------
+routing {
+    # ===== 本地与必需直连（防环路/防误代理）=====
+    pname(NetworkManager) -> direct
+    pname(dnsmasq) -> must_direct
+    pname(netifd) -> must_direct
+    pname(daed) -> must_direct
+    pname(dae) -> must_direct
+    pname(pbr) -> must_direct
+    pname(mwan4) -> must_direct
+
+    # 广播/组播/私网直连
+    dip(224.0.0.0/3, 'ff00::/8') -> direct
+    dip(geoip:private) -> direct
+
+    # 常见的"必须直连"端口：NTP、STUN（打洞）、DHCP
+    dport(123) -> direct
+    dport(3478) -> direct
+    dport(67, 68) -> direct
+
+    # ===== 广告与追踪拦截 =====
+    domain(geosite:category-ads-all) -> block
+
+    # ===== 国内直连（含苹果/微软国内 CDN）=====
+    domain(geosite:cn) -> direct
+    dip(geoip:cn) -> direct
+    domain(geosite:apple) -> direct
+    domain(geosite:microsoft) -> direct
+
+    # ===== 需要代理的重点服务（核心标签，稳定存在）=====
+    domain(geosite:google) -> proxy
+    domain(geosite:youtube) -> proxy
+    domain(geosite:telegram) -> proxy
+    domain(geosite:twitter) -> proxy
+    domain(geosite:netflix) -> proxy
+    domain(geosite:disney) -> proxy
+    domain(geosite:spotify) -> proxy
+    domain(geosite:github) -> proxy
+
+    # ===== 兜底：所有非中国域名走代理 =====
+    domain(geosite:geolocation-!cn) -> proxy
+    fallback: proxy
+
+    # ==========================================================================
+    # 【扩展】以下标签请先用 `dae validate`（或 daed 面板的规则检查）确认存在再打开。
+    # 打开方式：去掉行首 "# "。
+    #
+    # domain(geosite:openai) -> proxy
+    # domain(geosite:anthropic) -> proxy
+    # domain(geosite:tiktok) -> proxy
+    # domain(geosite:hbo) -> proxy
+    # domain(geosite:primevideo) -> proxy
+    # domain(geosite:steam) -> proxy
+    # domain(geosite:epicgames) -> proxy
+    # domain(geosite:category-games) -> proxy
+    # domain(geosite:category-media) -> proxy
+    # domain(geosite:category-ai-chat-!cn) -> proxy
+    #
+    # 想按服务分不同节点组时，把上面的 "-> proxy" 改成 "-> streaming" / "-> ai" / "-> telegram"，
+    # 并同时打开 group 段里对应组的注释。
+    # ==========================================================================
+}
