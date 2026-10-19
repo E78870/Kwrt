@@ -81,30 +81,30 @@ dns {
 # 取消下面 streaming / ai / telegram 的注释，并把 name(keyword:'') 改成你节点名里的特征词
 # ---------------------------------------------------------------------------
 group {
-    # 默认组：全部节点，按移动平均延迟选路
-    proxy {
-        policy: min_moving_avg
-    }
+    # ===== 地区分组：自动选"该地区里延迟最低且可用"的节点（内置故障切换）=====
+    # 过滤用的是节点名关键词；你的机场节点名里一般带 HK/JP/US/SG/TW 等标记
+    hk { filter: name(keyword: 'HK')  || name(keyword: 'Hong')      ; policy: min_moving_avg }
+    jp { filter: name(keyword: 'JP')  || name(keyword: 'Japan')     ; policy: min_moving_avg }
+    us { filter: name(keyword: 'US')  || name(keyword: 'United')    ; policy: min_moving_avg }
+    sg { filter: name(keyword: 'SG')  || name(keyword: 'Singapore') ; policy: min_moving_avg }
+    tw { filter: name(keyword: 'TW')  || name(keyword: 'Taiwan')    ; policy: min_moving_avg }
 
-    # 流媒体组（示例：节点名里带 "US"/"Netflix" 的）
-    #streaming {
-    #    filter: name(keyword: 'US') || name(keyword: 'Netflix')
-    #    policy: min_moving_avg
-    #    tcp_check_url: 'http://test.netflix.com'
-    #}
+    # ===== 用途分组：每个用途可以绑到不同地区 =====
+    proxy     { policy: min_moving_avg }                                   # 默认：全局最优
+    ai        { filter: name(keyword: 'US') || name(keyword: 'JP'); policy: min_moving_avg }   # AI 应用
+    telegram  { filter: name(keyword: 'SG') || name(keyword: 'HK'); policy: min_moving_avg }   # 电报
+    streaming { filter: name(keyword: 'US') || name(keyword: 'JP'); policy: min_moving_avg }   # 流媒体
 
-    # AI 组（示例：节点名里带 "AI"/"GPT" 的）
-    #ai {
-    #    filter: name(keyword: 'AI') || name(keyword: 'GPT')
-    #    policy: min_moving_avg
-    #}
-
-    # 电报组
-    #telegram {
-    #    filter: name(keyword: 'SG') || name(keyword: 'HK')
-    #    policy: min_moving_avg
-    #}
+    # ===== 负载均衡：随机分摊到全部节点（不看延迟）=====
+    lb { policy: random }
 }
+
+# ---------------------------------------------------------------------------
+# 分流规则
+#   -> hk / jp / us / sg / tw    指定地区
+#   -> proxy                     自动最优
+#   -> lb                        负载均衡
+# ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
 # 分流规则（自上而下，先匹配先生效）
@@ -138,13 +138,13 @@ routing {
     domain(geosite:microsoft) -> direct
 
     # ===== 需要代理的重点服务（核心标签，稳定存在）=====
+    # ===== 按用途走分组（可自行改成 hk/jp/us/sg/tw/lb）=====
+    domain(geosite:telegram) -> telegram
+    domain(geosite:twitter) -> telegram
+    domain(geosite:netflix) -> streaming
+    domain(geosite:disney) -> streaming
+    domain(geosite:youtube) -> streaming
     domain(geosite:google) -> proxy
-    domain(geosite:youtube) -> proxy
-    domain(geosite:telegram) -> proxy
-    domain(geosite:twitter) -> proxy
-    domain(geosite:netflix) -> proxy
-    domain(geosite:disney) -> proxy
-    domain(geosite:spotify) -> proxy
     domain(geosite:github) -> proxy
 
     # ===== 兜底：所有非中国域名走代理 =====
